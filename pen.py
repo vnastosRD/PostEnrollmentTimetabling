@@ -14,20 +14,21 @@ extra_constraints={
 
 def define_problem_formulation(dataset_path):
     problem_id=dataset_path.split(os.path.sep)[-1]
+    print(problem_id)
 
-    if  re.match(r'^o\d+\.txt',problem_id):
+    if  re.match(r'^o\d+\.tim',problem_id):
         return "TTCOMP-2002"
-    elif re.match(r"^big\_d+\.txt",problem_id):
+    elif re.match(r"^big\_d+\.tim",problem_id):
         return "Harder-(Lewis and Paechter)"
-    elif re.match(r"^easy\d+\.txt",problem_id):
+    elif re.match(r"^easy\d+\.tim",problem_id):
         return "Metaheuristics Network"
-    elif re.match(r"^i\d+\.txt",problem_id):
+    elif re.match(r"^i\d+\.tim",problem_id):
         return "ITC-2007"
-    elif re.match(r"^hard\d+\.txt",problem_id):
+    elif re.match(r"^hard\d+\.tim",problem_id):
         return "Metaheuristics Network"
-    elif re.match(r"^med\_\d+\.txt",problem_id):
+    elif re.match(r"^med\_\d+\.tim",problem_id):
         return "Harder-(Lewis and Paechter)"
-    elif re.match(r"^medium\d+\.txt",problem_id):
+    elif re.match(r"^medium\d+\.tim",problem_id):
         return "Metaheuristics Network"
     
     return None
@@ -50,20 +51,21 @@ class Problem:
         self.Graph=None
         
     def read_problem(self):
-        self.rooms={room_id:{"F":set(),"C":-1} for room_id in range(self.R)}
-        # - Each events has students list key->S Features set key->F and some higher priority events key->HPE
-        self.events={event_id:{"S":set(),"F":set(),"HPE":list()} for event_id in range(self.E)}
-        self.period_availabilty=defaultdict(list)
         self.event_available_rooms=defaultdict(list)
         
         with open(self.dataset_path,'r') as reader:
             line=reader.readline().strip()    
             self.E,self.R,self.F,self.S=[int(item) for item in line.split()]
             
+            self.rooms={room_id:{"F":set(),"C":-1} for room_id in range(self.R)}
+            # - Each events has students list key->S Features set key->F and some higher priority events key->HPE
+            self.events={event_id:{"S":set(),"F":set(),"HPE":list()} for event_id in range(self.E)}
+            self.period_availabilty={event_id:list(range(self.P)) for event_id in range(self.E)}
+            
             # 1. Begin with the room capacity and room creation
             for room_index in range(self.R):
                 line=reader.readline().strip()
-                self.rooms[room_index]={"F":list(),"C":int(line)}
+                self.rooms[room_index]["C"]=int(line)
             
             # 2. Event-Student relation
             for event_id in range(self.E):
@@ -80,7 +82,7 @@ class Problem:
             # 4. Event-Feature relation
             for event_id in range(self.E):
                 for feature_id in range(self.F):
-                    if int(reader.readline())==1:
+                    if int(reader.readline().strip())==1:
                         self.events[event_id]["F"].add(feature_id)
             
             # Some formulations of the problem have some extra restrictions
@@ -93,8 +95,8 @@ class Problem:
                         line=reader.readline().strip()
                         if line=="":
                             break
-                        if int(line)==1:
-                            self.period_availabilty[event_id].append(period_id)
+                        if int(line)==0:
+                            self.period_availabilty[event_id].remove(period_id)
                 
                 # 6. Event-Event priority relations
                 for event_id in range(self.E):
@@ -106,11 +108,13 @@ class Problem:
                         
                         if int(line)==1:
                             self.events[event_id]["HPE"].append(event_id2)
+                        elif int(line)==-1:
+                            self.events[event_id2]["HPE"].append(event_id)
         
         # 7. Find available rooms for each one of the events
         for event_id in range(self.E):
             for room_id in range(self.R):
-                if len(self.events[event_id]["S"])<self.rooms[room_id]["C"]: continue
+                if len(self.events[event_id]["S"])>self.rooms[room_id]["C"]: continue
                 if self.events[event_id]["F"].issubset(self.rooms[room_id]["F"]):
                     self.event_available_rooms[event_id].append(room_id)
         
@@ -118,9 +122,11 @@ class Problem:
         self.Graph=nx.Graph()
         for event_id in range(self.E):
             for event_id2 in range(event_id+1,self.E):
-                common_students=self.events[event_id]["S"].intersection(self.events[event_id2]["S"])
+                common_students=len(self.events[event_id]["S"].intersection(self.events[event_id2]["S"]))
                 if common_students>0:
                     self.Graph.add_edge(event_id,event_id2,weight=common_students)
+                elif self.event_available_rooms[event_id]==self.event_available_rooms[event_id2] and len(self.event_available_rooms[event_id])==1:
+                    self.Graph.add_edge(event_id,event_id2,weight=1)
     
     def statistics(self):
          # Calculated problem statistics
@@ -131,15 +137,18 @@ class Problem:
         average_suitable_rooms_per_event=sum([len(self.event_available_rooms[event_id]) for event_id in range(self.E)])/self.E
         average_room_size=sum([self.rooms[room_id]["C"] for room_id in range(self.R)])/self.R
         conflict_density=nx.density(self.Graph)
-        average_event_period_unavailability=sum(self.P-self.period_availabilty[event_id] for event_id in range(self.E))/self.E
+        # conflict_density=(2*self.Graph.number_of_edges())/(self.Graph.number_of_nodes()*(self.Graph.number_of_nodes()-1))
+        average_event_period_unavailability=sum(self.P-len(self.period_availabilty[event_id]) for event_id in range(self.E))/self.E
         
         # Calculate conflict distribution
         degrees=dict(self.Graph.degree)
         degree_values=np.array(list(degrees.values()))
-        degree_conflict=skew(degree_values)
+        degree_conflict=float(skew(degree_values))
         return average_suitable_rooms_per_event,average_room_size,conflict_density,average_event_period_unavailability,degree_conflict
 
 if __name__=="__main__":
-    problem=Problem("/Users/vasileios-nastos/Desktop/Post-enrollment-Timetabling/instances/o01.tim")     
+    dataset="/Users/vasileios-nastos/Desktop/Post-enrollment-Timetabling/instances/o01.tim"
+    problem=Problem(dataset)     
     problem.read_problem()
-    print(f"Statistics:{problem.statistics()}")                 
+    average_suitable_rooms_per_event,average_room_size,conflict_density,average_event_period_unavailability,degree_conflict=problem.statistics()
+    print(f"Statistics[{dataset.split(os.path.sep)[-1].strip().removesuffix(".tim")}]\n-----\n{average_suitable_rooms_per_event=},{average_room_size=},{conflict_density=},{average_event_period_unavailability=},{degree_conflict=}")                 
