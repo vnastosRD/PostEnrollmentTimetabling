@@ -1,5 +1,6 @@
 import os,re
 from collections import defaultdict
+from itertools import combinations
 import networkx as nx
 import numpy as np
 from scipy.stats import skew
@@ -43,7 +44,9 @@ class Problem:
         self.D=5
         self.P=self.D*self.PPD
         self.events=None
+        self.students=None
         self.rooms=None
+        self.event_combinations=None
         self.period_availabilty=None
         self.event_available_rooms=None
         self.dataset_path=dataset_path
@@ -52,7 +55,8 @@ class Problem:
         
     def read_problem(self):
         self.event_available_rooms=defaultdict(list)
-        
+        self.students=defaultdict(list)
+
         with open(self.dataset_path,'r') as reader:
             line=reader.readline().strip()    
             self.E,self.R,self.F,self.S=[int(item) for item in line.split()]
@@ -72,6 +76,7 @@ class Problem:
                 for student_id in range(self.S):
                     if int(reader.readline().strip())==1:
                         self.events[event_id]["S"].add(student_id)
+                        self.students[student_id].append(event_id)
             
             # 3. Room-Feature relation 
             for room_id in range(self.R):
@@ -127,6 +132,12 @@ class Problem:
                     self.Graph.add_edge(event_id,event_id2,weight=common_students)
                 elif self.event_available_rooms[event_id]==self.event_available_rooms[event_id2] and len(self.event_available_rooms[event_id])==1:
                     self.Graph.add_edge(event_id,event_id2,weight=1)
+        
+        # In order to calculate the penalty each student with 3 consecutive events gets a penalty, so we are create combinations consisting of 3 events in order to help as calculate the score
+        self.event_combinations=dict()
+        for student_events in self.students.values():
+            for event_combination_iter in combinations(student_events,3):
+                self.event_combinations[frozenset(event_combination_iter)]=self.event_combinations.get(frozenset(event_combination_iter),0)+1
     
     def statistics(self):
          # Calculated problem statistics
