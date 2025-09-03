@@ -38,9 +38,9 @@ For each student `s`:
 - +1 penalty for every occurrence of three (or more) consecutive events
   on the same day.
 
-\[
+$$
 P_{2}(s) = \sum_{d} \sum_{\text{consecutive } (e_1,e_2,e_3) \subseteq E_s \text{ on day } d} \mathbf{1}\{\text{consecutive timeslots}\}
-\]
+$$
 
 ---
 
@@ -48,18 +48,18 @@ P_{2}(s) = \sum_{d} \sum_{\text{consecutive } (e_1,e_2,e_3) \subseteq E_s \text{
 For each student `s`:
 - +1 penalty if the student has exactly one event scheduled that day.
 
-\[
+$$
 P_{3}(s) = \sum_{d} \mathbf{1}\{|E_s \cap \{e : d(e) = d\}| = 1\}
-\]
+$$
 
 ---
 
 #### Total Penalty
 The final penalty is the sum of all three components for all students:
 
-\[
+$$
 \text{Penalty} = \sum_{s \in S} \Big( P_{1}(s) + P_{2}(s) + P_{3}(s) \Big)
-\]
+$$
 
 ## Solution Approach
 
