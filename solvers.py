@@ -80,12 +80,13 @@ def create_initial_solution(problem:Problem,timesol=600):
                 solution[event_id]=(period_id,room_id)
     return solution
 
-def solve_day_by_day(problem:Problem,day:int,solution_hints:dict):
+def solve_day_by_day(problem:Problem,day:int,solution_hints:dict,timesol:int):
+    # Try to optimize each day seperatly
+    event_set=[event_id for event_id,(period_id,_) in solution_hints.items() if period_id>=day*problem.PPD and period_id<day*problem.PPD+problem.PPD]
     model=cp_model.CpModel()
-    eset=[event_id for event_id,sol_params in solution_hints.items() if sol_params[0]>=day*problem.PPD and sol_params[0]<day*problem.PPD+problem.PPD]
-    xvars={(event_id,room_id,period_id):model.NewBoolVar(f'{event_id}_{room_id}_{period_id}') for event_id in eset for room_id in range(problem.R) for period_id in range(day*problem.PPD,day*problem.PPD+problem.PPD)}
-    
-    for event_id in range(problem.E):
+    xvars={(event_id,room_id,period_id):model.NewBoolVar(name=f"{event_id}_{room_id}_{period_id}") for event_id in event_set for room_id in problem.event_available_rooms[event_id] for period_id in range(day*problem.PPD,day*problem.PPD+problem.PPD)}
+
+    for event_id in event_set:
         model.Add(
             sum([
                 xvars[(event_id,room_id,period_id)]
@@ -94,25 +95,61 @@ def solve_day_by_day(problem:Problem,day:int,solution_hints:dict):
             ])==1
         )
     
-    for event_id in eset:
-        for room_id in range(problem.R):
-            if room_id not in problem.event_available_rooms[event_id]:
-                model.add(
-                    sum([
-                        xvars[(event_id,room_id,period_id)]
-                        for period_id in range(day*problem.PPD,day*problem.PPD+problem.PPD)
-                    ])==0
-                )
-        
+    for event_id in event_set:
         for period_id in range(day*problem.PPD,day*problem.PPD+problem.PPD):
             if period_id not in problem.period_availabilty[event_id]:
-                model.add(
+                model.Add(
                     sum([
                         xvars[(event_id,room_id,period_id)]
                         for room_id in range(problem.R)
+                        for period_id in range(problem.PPD)
                     ])==0
                 )
-        
+    
+    for room_id in range(problem.R):
+        for period_id in range(day*problem.PPD,day*problem.PPD+problem.PPD):
+            model.Add(
+                sum([
+                    xvars[(event_id,room_id,period_id)]
+                    for event_id in event_set
+                ])<=1
+            )
+
+    for event_id in event_set:
+        for event_id2 in problem.Graph.neighbors(event_id):
+            if event_id2 in event_set:
+                for period_id in range(day*problem.PPD,day*problem.PPD+problem.PPD):
+                    model.Add(
+                        sum([
+                            xvars[(event_id,room_id,period_id)]
+                            for room_id in range(problem.R)
+                        ])+sum([
+                            xvars[(event_id2,room_id,period_id)]
+                            for room_id in range(problem.R)
+                        ])<=1
+                    )
+
+    if extra_constraints[problem.formulation]:
+        for event_id in event_set:
+            for event_id2 in problem.events[event_id]["HPE"]:
+                if event_id2 in event_set:
+                    model.Add(
+                        sum([
+                            xvars[(event_id,room_id,period_id)]*period_id
+                            for room_id in range(problem.R)
+                            for period_id in range(day*problem.PPD,day*problem.PPD+problem.PPD)
+                        ])<sum([
+                            xvars[(event_id2,room_id,period_id)]*period_id
+                            for room_id in range(problem.R)
+                            for period_id in range(day*problem.PPD,day*problem.PPD+problem.PPD)
+                        ])
+                    )
+    
+    solver=cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds=timesol
+    solver.parameters.num_search_workers=os.cpu_count()
+    
+
     
 if __name__=="__main__":
     dataset_path="/Users/vasileios-nastos/Desktop/Post-enrollment-Timetabling/instances/i08.tim"
