@@ -27,9 +27,9 @@ for all students across all days:
 For each student `s`:
 - +1 penalty for every event scheduled in the last timeslot of a day.
 
-\[
+$$
 P_{1}(s) = \sum_{e \in E_s} \mathbf{1}\{t(e) = \text{last}(d(e))\}
-\]
+$$
 
 ---
 
