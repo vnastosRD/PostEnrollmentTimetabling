@@ -2,6 +2,7 @@ import os,re
 from collections import defaultdict
 from itertools import combinations
 import networkx as nx
+from networkx.algorithms.community import greedy_modularity_communities
 import numpy as np
 from scipy.stats import skew
 import argparse
@@ -139,6 +140,19 @@ class Problem:
             for event_combination_iter in combinations(student_events,3):
                 self.event_combinations[frozenset(event_combination_iter)]=self.event_combinations.get(frozenset(event_combination_iter),0)+1
     
+    # Approach of building clusters using Algorithms that detects dense subgraphs
+    def build_clusters(self,max_size=50):
+        clusters=[]
+        communities=list(greedy_modularity_communities(self.Graph,resolution=1.1))
+        for comm in communities:
+            if len(comm)>max_size:
+                subG=self.Graph.subgraph(comm)
+                parts=nx.algorithms.community.asyn_fluidc(subG)
+                clusters.extend([list(p) for p in parts])
+            else:
+                clusters.append(comm)
+        return clusters
+
     def statistics(self):
          # Calculated problem statistics
         # average_suitable_rooms_per_event=(1/∣E∣) * ​e∈E∑​-∣S(e)∣
@@ -158,8 +172,9 @@ class Problem:
         return average_suitable_rooms_per_event,average_room_size,conflict_density,average_event_period_unavailability,degree_conflict
 
 if __name__=="__main__":
-    dataset="/Users/vasileios-nastos/Desktop/Post-enrollment-Timetabling/instances/o01.tim"
+    dataset=os.path.join("","demo-datasets","i11.tim")
     problem=Problem(dataset)     
     problem.read_problem()
-    average_suitable_rooms_per_event,average_room_size,conflict_density,average_event_period_unavailability,degree_conflict=problem.statistics()
-    print(f"Statistics[{dataset.split(os.path.sep)[-1].strip().removesuffix(".tim")}]\n-----\n{average_suitable_rooms_per_event=},{average_room_size=},{conflict_density=},{average_event_period_unavailability=},{degree_conflict=}")                 
+    problem.build_clusters()
+    # average_suitable_rooms_per_event,average_room_size,conflict_density,average_event_period_unavailability,degree_conflict=problem.statistics()
+    # print(f"Statistics[{dataset.split(os.path.sep)[-1].strip().removesuffix(".tim")}]\n-----\n{average_suitable_rooms_per_event=},{average_room_size=},{conflict_density=},{average_event_period_unavailability=},{degree_conflict=}")                 

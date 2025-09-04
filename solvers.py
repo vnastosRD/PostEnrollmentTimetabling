@@ -89,13 +89,7 @@ def solve_day_by_day(problem:Problem,day:int,solution_hints:dict,timesol:int):
     day_event_combinations=[frozenset(ecombination) for ecombination in combinations(event_set,3) if frozenset(ecombination) in problem.event_combinations]
 
     for event_id in event_set:
-        model.Add(
-            sum([
-                xvars[(event_id,room_id,period_id)]
-                for room_id in range(problem.R)
-                for period_id in range(day*problem.PPD,day*problem.PPD+problem.PPD)
-            ])==1
-        )
+        model.AddExactlyOne([xvars[(event_id,room_id,period_id)] for room_id in range(problem.R) for period_id in range(day*problem.PPD,day*problem.PPD+problem.PPD)])
     
     for event_id in event_set:
         for period_id in range(day*problem.PPD,day*problem.PPD+problem.PPD):
@@ -103,33 +97,23 @@ def solve_day_by_day(problem:Problem,day:int,solution_hints:dict,timesol:int):
                 model.Add(
                     sum([
                         xvars[(event_id,room_id,period_id)]
-                        for room_id in range(problem.R)
+                        for room_id in problem.event_available_rooms[event_id]
                         for period_id in range(problem.PPD)
                     ])==0
                 )
     
     for room_id in range(problem.R):
         for period_id in range(day*problem.PPD,day*problem.PPD+problem.PPD):
-            model.Add(
-                sum([
-                    xvars[(event_id,room_id,period_id)]
-                    for event_id in event_set
-                ])<=1
-            )
+            model.AddAtMostOne([xvars[(event_id,room_id,period_id)] for event_id in event_set if room_id in problem.event_available_rooms[event_id]])
 
     for event_id in event_set:
         for event_id2 in problem.Graph.neighbors(event_id):
             if event_id2 in event_set:
                 for period_id in range(day*problem.PPD,day*problem.PPD+problem.PPD):
-                    model.Add(
-                        sum([
-                            xvars[(event_id,room_id,period_id)]
-                            for room_id in range(problem.R)
-                        ])+sum([
-                            xvars[(event_id2,room_id,period_id)]
-                            for room_id in range(problem.R)
-                        ])<=1
-                    )
+                    if period_id in problem.period_availabilty[event_id] and period_id in problem.period_availabilty[event_id2]:
+                        neighbored_events=[xvars[(event_id,room_id,period_id)] for room_id in problem.event_available_rooms[event_id]]
+                        neighbored_events.extend([xvars[(event_id2,room_id,period_id)] for room_id in problem.event_available_rooms[event_id2]])
+                        model.AddAtMostOne(neighbored_events)
 
     if extra_constraints[problem.formulation]:
         for event_id in event_set:
