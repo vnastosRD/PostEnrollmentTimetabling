@@ -162,7 +162,10 @@ def solve_day_by_day(problem:Problem,day:int,solution_hints:dict,timesol:int):
                 solution[event_id]=(period_id,room_id)
         return solution
     return None
-    
+
+def solve_community_problem(problem:Problem,community:list,solution_hints:dict):
+    pass
+
 if __name__=="__main__":
     dataset_path="/Users/vasileios-nastos/Desktop/Post-enrollment-Timetabling/instances/i08.tim"
     problem=Problem(dataset_path=dataset_path)

@@ -3,6 +3,7 @@ from collections import defaultdict
 from itertools import combinations
 import networkx as nx
 from networkx.algorithms.community import greedy_modularity_communities
+from networkx.algorithms.community.centrality import girvan_newman
 import numpy as np
 from scipy.stats import skew
 import argparse
@@ -141,17 +142,16 @@ class Problem:
                 self.event_combinations[frozenset(event_combination_iter)]=self.event_combinations.get(frozenset(event_combination_iter),0)+1
     
     # Approach of building clusters using Algorithms that detects dense subgraphs
-    def build_clusters(self,max_size=50):
-        clusters=[]
-        communities=list(greedy_modularity_communities(self.Graph,resolution=1.1))
-        for comm in communities:
-            if len(comm)>max_size:
-                subG=self.Graph.subgraph(comm)
-                parts=nx.algorithms.community.asyn_fluidc(subG)
-                clusters.extend([list(p) for p in parts])
-            else:
-                clusters.append(comm)
-        return clusters
+    def search_for_communities(self,method="greedy",**kwargs):
+        node_groups=[]
+        if method=="greedy":
+            communities=greedy_modularity_communities(self.Graph,resolution=0.9)
+            node_groups=[list(com) for com in communities]
+        elif method=="girvan-newman":
+            communities=girvan_newman(self.Graph)
+            for com in next(communities):
+                node_groups.append(list(com))
+        return node_groups
 
     def statistics(self):
          # Calculated problem statistics
@@ -175,6 +175,6 @@ if __name__=="__main__":
     dataset=os.path.join("","demo-datasets","i11.tim")
     problem=Problem(dataset)     
     problem.read_problem()
-    problem.build_clusters()
+    print(problem.search_for_communities(method="greedy",max_size=50))
     # average_suitable_rooms_per_event,average_room_size,conflict_density,average_event_period_unavailability,degree_conflict=problem.statistics()
     # print(f"Statistics[{dataset.split(os.path.sep)[-1].strip().removesuffix(".tim")}]\n-----\n{average_suitable_rooms_per_event=},{average_room_size=},{conflict_density=},{average_event_period_unavailability=},{degree_conflict=}")                 
